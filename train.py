@@ -37,97 +37,97 @@ parser.add_argument("--Lambda1", type=float, default=1.0)
 parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 
-opt, _ = parser.parse_known_args()
-systime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
-operation_seed_counter = 0
-os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices
+opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
+systime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')   ###  Formateo de fecha actual (ejecución)
+operation_seed_counter = 0   ### Elección de semilla de aleatoriedad
+os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
 
-
+### Metodo para guardar el estado de la red
 def checkpoint(net, epoch, name):
-    save_model_path = os.path.join(opt.save_model_path, opt.log_name, systime)
-    os.makedirs(save_model_path, exist_ok=True)
-    model_name = 'epoch_{}_{:03d}.pth'.format(name, epoch)
-    save_model_path = os.path.join(save_model_path, model_name)
-    torch.save(net.state_dict(), save_model_path)
+    save_model_path = os.path.join(opt.save_model_path, opt.log_name, systime)   ### Crea la ruta donde se guardara el estado de la red
+    os.makedirs(save_model_path, exist_ok=True)   ### Crea la carpeta si no está creada
+    model_name = 'epoch_{}_{:03d}.pth'.format(name, epoch)   ### Establece el nombre del archivo con el modelo
+    save_model_path = os.path.join(save_model_path, model_name)   ### Crea la ruta completa del archivo que se creará
+    torch.save(net.state_dict(), save_model_path)   ### Guarda los pesos del modelo
     print('Checkpoint saved to {}'.format(save_model_path))
 
-
+### Modifica la semilla del generador de numeros aleatorios y devuelve un generador con la semilla correspondiente
 def get_generator():
-    global operation_seed_counter
-    operation_seed_counter += 1
-    g_cuda_generator = torch.Generator(device="cuda")
-    g_cuda_generator.manual_seed(operation_seed_counter)
+    global operation_seed_counter   ### Accede a la variable externa para modificarla
+    operation_seed_counter += 1   ### Incrementa la semilla
+    g_cuda_generator = torch.Generator(device="cuda")   ### Crea un generador de números aleatorios
+    g_cuda_generator.manual_seed(operation_seed_counter)   ### Establece la semilla con la creada anteriormente
     return g_cuda_generator
 
-
+### Clase destinada a la inclusión de ruido artificial a las imágenes de entrada
 class AugmentNoise(object):
     def __init__(self, style):
         print(style)
-        if style.startswith('gauss'):
+        if style.startswith('gauss'):   ### Si el ruido elegido es de tipo gaussiano
             self.params = [
-                float(p) / 255.0 for p in style.replace('gauss', '').split('_')
+                float(p) / 255.0 for p in style.replace('gauss', '').split('_')   ### Normaliza los valores de ruido indicados
             ]
-            if len(self.params) == 1:
+            if len(self.params) == 1:   ### Si solo hay un elemento el valor es fijo
                 self.style = "gauss_fix"
-            elif len(self.params) == 2:
+            elif len(self.params) == 2:   ### Si hay dos elementos se indica un rango
                 self.style = "gauss_range"
-        elif style.startswith('poisson'):
+        elif style.startswith('poisson'):   ### Si el ruido elegido es de tipo poisson
             self.params = [
-                float(p) for p in style.replace('poisson', '').split('_')
+                float(p) for p in style.replace('poisson', '').split('_')   ### Normaliza los valores de ruido indicados
             ]
-            if len(self.params) == 1:
+            if len(self.params) == 1:   ### Si solo hay un elemento el valor es fijo
                 self.style = "poisson_fix"
-            elif len(self.params) == 2:
+            elif len(self.params) == 2:   ### Si hay dos elementos se indica un rango
                 self.style = "poisson_range"
 
-    def add_train_noise(self, x):
-        shape = x.shape
-        if self.style == "gauss_fix":
-            std = self.params[0]
-            std = std * torch.ones((shape[0], 1, 1, 1), device=x.device)
-            noise = torch.cuda.FloatTensor(shape, device=x.device)
+    def add_train_noise(self, x):   ### Metodo para incluir ruido en las imagenes de entrenamiento
+        shape = x.shape   ### Guarda las dimensiones de la imagen
+        if self.style == "gauss_fix":   ### Tipo de ruido es gaussiano de valor fijo
+            std = self.params[0]   ### Guarda la desviación estandar que se usará
+            std = std * torch.ones((shape[0], 1, 1, 1), device=x.device)   ### Crea una matriz rellena del valor estándar en el el dispositivo de ejecucion
+            noise = torch.cuda.FloatTensor(shape, device=x.device)   ### Crea un tensor del tamaño de la imagen de tipo float para almacenar el ruido
             torch.normal(mean=0.0,
                          std=std,
                          generator=get_generator(),
-                         out=noise)
-            return x + noise
-        elif self.style == "gauss_range":
-            min_std, max_std = self.params
+                         out=noise)   ### Genera el ruido normalizado con un generador usando la matriz de valor estandar creada anteriormente
+            return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
+        elif self.style == "gauss_range":   ### Tipo de ruido es gaussiano con valor variable
+            min_std, max_std = self.params   ### Guarda la desviacion minima y maxima
             std = torch.rand(size=(shape[0], 1, 1, 1),
-                             device=x.device) * (max_std - min_std) + min_std
-            noise = torch.cuda.FloatTensor(shape, device=x.device)
-            torch.normal(mean=0, std=std, generator=get_generator(), out=noise)
-            return x + noise
-        elif self.style == "poisson_fix":
-            lam = self.params[0]
-            lam = lam * torch.ones((shape[0], 1, 1, 1), device=x.device)
-            noised = torch.poisson(lam * x, generator=get_generator()) / lam
-            return noised
-        elif self.style == "poisson_range":
-            min_lam, max_lam = self.params
+                             device=x.device) * (max_std - min_std) + min_std   ### Genera una matriz de valores aleatorios entre el maximo y el minimo de variacion
+            noise = torch.cuda.FloatTensor(shape, device=x.device)   ### Crea un tensor del tamaño de la imagen de tipo float para almacenar el ruido
+            torch.normal(mean=0, std=std, generator=get_generator(), out=noise)   ### Genera el ruido normalizado con un generador usando la matriz de valor estandar creada anteriormente
+            return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
+        elif self.style == "poisson_fix":   ### Tipo de ruido es de poisson de valor fijo
+            lam = self.params[0]   ### Guarda el indice de ruido
+            lam = lam * torch.ones((shape[0], 1, 1, 1), device=x.device)   ### Genera una matriz rellena con el valor del ruido
+            noised = torch.poisson(lam * x, generator=get_generator()) / lam   ### Genera un tensor con distribucion de Poisson normalizado
+            return noised   ### Devuelve la imagen con el ruido ya aplicado
+        elif self.style == "poisson_range":   ### Tipo de ruido es de poisson con valor variable
+            min_lam, max_lam = self.params   ### Guarda el indice minimo y maximo de ruido de Poisson
             lam = torch.rand(size=(shape[0], 1, 1, 1),
-                             device=x.device) * (max_lam - min_lam) + min_lam
-            noised = torch.poisson(lam * x, generator=get_generator()) / lam
-            return noised
+                             device=x.device) * (max_lam - min_lam) + min_lam   ### Genera una matriz con valores aleatorios entre los valores maximos y minimos
+            noised = torch.poisson(lam * x, generator=get_generator()) / lam   ### Genera un tensor con distribucion de Poisson normalizado
+            return noised   ### Devuelve la imagen con el ruido ya aplicado
 
-    def add_valid_noise(self, x):
-        shape = x.shape
-        if self.style == "gauss_fix":
-            std = self.params[0]
+    def add_valid_noise(self, x):   ### Metodo para incluir ruido de validacion
+        shape = x.shape   ### Guarda las dimensiones de la imagen
+        if self.style == "gauss_fix":   ### Tipo de ruido gaussiano fijo
+            std = self.params[0]   ### Guarda la desviacion estandar de ruido
             return np.array(x + np.random.normal(size=shape) * std,
-                            dtype=np.float32)
-        elif self.style == "gauss_range":
-            min_std, max_std = self.params
-            std = np.random.uniform(low=min_std, high=max_std, size=(1, 1, 1))
+                            dtype=np.float32)   ### Devuelve la imagen con ruido incluido (imagen mas vector normalizado por nivel de ruido)
+        elif self.style == "gauss_range":   ### Tipo de ruido gaussiano variable
+            min_std, max_std = self.params   ### Guarda los valores de desviacion minimo y maximo
+            std = np.random.uniform(low=min_std, high=max_std, size=(1, 1, 1))   ### Genera un vector de valores normalizados aleatorios entre los valores dados
             return np.array(x + np.random.normal(size=shape) * std,
-                            dtype=np.float32)
-        elif self.style == "poisson_fix":
-            lam = self.params[0]
-            return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)
-        elif self.style == "poisson_range":
-            min_lam, max_lam = self.params
-            lam = np.random.uniform(low=min_lam, high=max_lam, size=(1, 1, 1))
-            return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)
+                            dtype=np.float32)   ### Devuelve la imagen con ruido incluido (imagen mas vector normalizado por nivel de ruido)
+        elif self.style == "poisson_fix":   ### Tipo de ruido poisson fijo
+            lam = self.params[0]   ### Guarda el indice de ruido
+            return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)   ### Devuelve la imagen con ruido normalizada
+        elif self.style == "poisson_range":   ### Tipo de ruido poisson variable
+            min_lam, max_lam = self.params   ### Guarda los indices de ruido minimo y maximo
+            lam = np.random.uniform(low=min_lam, high=max_lam, size=(1, 1, 1))   ### Genera un vector de valores normalizados aleatorios entre los valores dados
+            return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)   ### Devuelve la imagen con ruido normalizada
 
 
 def space_to_depth(x, block_size):
