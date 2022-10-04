@@ -130,7 +130,7 @@ class AugmentNoise(object):
             return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)   ### Devuelve la imagen con ruido normalizada
 
 
-def space_to_depth(x, block_size):  """ Falta por comprobar el funcionamiento del metodo unfold (se entiende que cambia las dimensiones de un array) """ ### 
+def space_to_depth(x, block_size):
     n, c, h, w = x.size()   ### Guarda el numero de muestras, canales de la imagen y su alto y ancho
     unfolded_x = torch.nn.functional.unfold(x, block_size, stride=block_size)   ### 
     return unfolded_x.view(n, c * block_size**2, h // block_size,
@@ -234,7 +234,7 @@ def validation_kodak(dataset_dir):   ###  Metodo para cargar el dataset kodak
 
 def validation_bsd300(dataset_dir):   ### Metodo para cargar el dataset BSD300
     fns = []   ### Crea un array para los archivos del directorio
-    fns.extend(glob.glob(os.path.join(dataset_dir, "test", "*"))) """ No entiendo la diferencia de la llamada al metodo glob con las demas para el uso del extend """  ### Carga los archivos en el array 
+    fns.extend(glob.glob(os.path.join(dataset_dir, "test", "*")))   ### Carga los archivos en el array 
     fns.sort()   ### Ordena los nombres de los archivos
     images = []   ### Crea un array para las imagenes
     for fn in fns:   ### Para cada archivo en el directorio
@@ -255,8 +255,7 @@ def validation_Set14(dataset_dir):   ### Metodo para cargar el dataset Set14
     return images   ### Devuelve el array de imagenes ya cargadas
 
 
-def ssim(prediction, target): """En resumen, se obtienen todas las variables necesarias para poder aplicar la formula del ssim"""   ### Metodo para calcular el ssim (structural similarity index measure) entre dos imagenes
-    
+def ssim(prediction, target):   ### Metodo para calcular el ssim (structural similarity index measure) entre dos imagenes
     ##### Se calculan las dos constantes estabilizadoras de la division
     C1 = (0.01 * 255)**2
     C2 = (0.03 * 255)**2
@@ -265,7 +264,7 @@ def ssim(prediction, target): """En resumen, se obtienen todas las variables nec
     img2 = target.astype(np.float64)
     kernel = cv2.getGaussianKernel(11, 1.5)   ### Se crea un kernel de 11x11 (radio de 5 desde el centro) con desviacion 1.5
     ### Multiplica el kernel por si mismo traspuesto (la matriz resultado es simetrica)
-    window = np.outer(kernel, kernel.transpose()) """El ssim se calcula a partir de varias ventanas de una imagen, de manera que se crea una ventana cercana a la media de la imagen con el kernel"""
+    window = np.outer(kernel, kernel.transpose())
     
     #mu es la media de la muestra de pixeles de la imagen y sigma square la varianca de la imagen
     mu1 = cv2.filter2D(img1, -1, window)[5:-5, 5:-5]  # valid
@@ -443,7 +442,7 @@ for epoch in range(1, opt.n_epoch + 1):
                     # padding to square
                     H = noisy_im.shape[0]   ### Se obtiene el alto de la imagen
                     W = noisy_im.shape[1]   ### Se obtiene el ancho de la imagen
-                    val_size = (max(H, W) + 31) // 32 * 32   """Parece que normaliza el tamaño de la dimension mas grande"""
+                    val_size = (max(H, W) + 31) // 32 * 32
                     noisy_im = np.pad(
                         noisy_im,
                         [[0, val_size - H], [0, val_size - W], [0, 0]],
@@ -455,7 +454,7 @@ for epoch in range(1, opt.n_epoch + 1):
                     with torch.no_grad():   ### Desactiva el calculo del gradiente para no retornar el error a la red
                         prediction = network(noisy_im)   ### Pasa la imagen ruidosa por la red y almacena la salida
                         prediction = prediction[:, :, :H, :W]   ### Extrae del resultado la imagen, eliminando las capas que no interesan
-                    prediction = prediction.permute(0, 2, 3, 1)   """Intercambia las dimensiones de la imagen """
+                    prediction = prediction.permute(0, 2, 3, 1)   ###Intercambia las dimensiones de la imagen
                     prediction = prediction.cpu().data.clamp(0, 1).numpy()   ### Pasa la imagen a CPU y trunca los datos entre 0 y 1
                     prediction = prediction.squeeze()   ### Elimina las dimensiones de tamaño 1
                     pred255 = np.clip(prediction * 255.0 + 0.5, 0,
