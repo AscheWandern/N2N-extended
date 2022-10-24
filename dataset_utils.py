@@ -1,8 +1,11 @@
 import numpy as np
 import torch
+import glob
+import os
 from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
+
 
 from utils import get_generator
 
@@ -115,7 +118,7 @@ class DataLoader_Validation(object):
         self.bsd300_dir = bsd300_dir
         self.set14_dir = set14_dir
         
-    def kodak():   ###  Metodo para cargar el dataset kodak
+    def kodak(self):   ###  Metodo para cargar el dataset kodak
         fns = glob.glob(os.path.join(self.kodak_dir, "*"))   ### Carga de los nombres del directorio
         fns.sort()   ### Ordenar nombres del directorio
         images = []   ### Creacion de array para las imagenes ya cargadas
@@ -126,7 +129,7 @@ class DataLoader_Validation(object):
         return images   ### Devuelve el array de imagenes ya cargadas
 
 
-    def bsd300():   ### Metodo para cargar el dataset BSD300
+    def bsd300(self):   ### Metodo para cargar el dataset BSD300
         fns = []   ### Crea un array para los archivos del directorio
         fns.extend(glob.glob(os.path.join(self.bsd300_dir, "test", "*")))   ### Carga los archivos en el array 
         fns.sort()   ### Ordena los nombres de los archivos
@@ -138,7 +141,7 @@ class DataLoader_Validation(object):
         return images   ### Devuelve el array de imagenes
 
 
-    def set14():   ### Metodo para cargar el dataset Set14
+    def set14(self):   ### Metodo para cargar el dataset Set14
         fns = glob.glob(os.path.join(self.set14_dir, "*"))   ### Carga los nombres del directorio
         fns.sort()   ### Ordena los nombres de las imagenes
         images = []   ### Crea un array para las imagenes

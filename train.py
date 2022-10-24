@@ -1,8 +1,6 @@
 from __future__ import division
 import os
 import time
-import glob
-import datetime
 import argparse
 import numpy as np
 
@@ -19,6 +17,7 @@ from dataset_utils import AugmentNoise, DataLoader_Imagenet_val, DataLoader_Vali
 from noise_metrics import calculate_ssim, calculate_psnr
 from generator_subimages import generate_mask_pair, generate_subimages
 from utils import checkpoint
+import settings
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--noisetype", type=str, default="gauss25")
@@ -41,10 +40,8 @@ parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
-systime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')   ###  Formateo de fecha actual (ejecución)
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
 settings.init()
-
 
 
 # Training Set
@@ -99,7 +96,7 @@ scheduler = lr_scheduler.MultiStepLR(optimizer,
                                      gamma=opt.gamma)   ### Disminuye el valor del lr en las epocas indicadas en milestone
 print("Batchsize={}, number of epoch={}".format(opt.batchsize, opt.n_epoch))
 
-checkpoint(network, 0, "model")   ### Creacion de un punto de guardado del modelo antes de entrenar
+checkpoint(network, 0, "model", opt.save_model_path, opt.log_name)   ### Creacion de un punto de guardado del modelo antes de entrenar
 print('init finish')
 
 ### Comienzo del algoritmo de entrenamiento
@@ -153,10 +150,10 @@ for epoch in range(1, opt.n_epoch + 1):
     if epoch % opt.n_snapshot == 0 or epoch == opt.n_epoch:   ### Si esta epoca esta marcada para realizar un guardado o es la ultima, se realiza un punto de guardado de la red
         network.eval()   ### Se activa la bandera de la red para que no entrene, de manera que lo que procese no afecta a los parametros
         # save checkpoint
-        checkpoint(network, epoch, "model")   ### Se guarda el estado de la red
+        checkpoint(network, epoch, "model", opt.save_model_path, opt.log_name)   ### Se guarda el estado de la red
         # validation
         save_model_path = os.path.join(opt.save_model_path, opt.log_name,
-                                       systime)   ### Se guarda localmente la red neuronal
+                                       settings.systime)   ### Se guarda localmente la red neuronal
         validation_path = os.path.join(save_model_path, "validation")   ### Se crea la ruta a un nuevo directorio
         os.makedirs(validation_path, exist_ok=True)   ### Se crea un directorio de validacion
         np.random.seed(101)   ### Se genera una semilla

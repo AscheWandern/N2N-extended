@@ -14,7 +14,7 @@ from torch.utils.data import Dataset
 
 from arch_unet import UNetimport torch
 from dataset_utils import AugmentNoise, DataLoader_Validation
-from utils import calculate_ssim, calculate_psnr
+from noise_metrics import calculate_ssim, calculate_psnr
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--noisetype", type=str, default="gauss25")
