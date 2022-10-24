@@ -13,9 +13,12 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 
 from arch_unet import UNet
+from dataset_utils import AugmentNoise, DataLoader_Imagenet_val, DataLoader_Validation
+from noise_metrics import calculate_ssim, calculate_psnr
+from generator_subimages import generate_mask_pair, generate_subimages
+from utils import checkpoint
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--noisetype", type=str, default="gauss25")
@@ -39,283 +42,9 @@ parser.add_argument("--increase_ratio", type=float, default=2.0)
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 systime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')   ###  Formateo de fecha actual (ejecución)
-operation_seed_counter = 0   ### Elección de semilla de aleatoriedad
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
+settings.init()
 
-### Metodo para guardar el estado de la red
-def checkpoint(net, epoch, name):
-    save_model_path = os.path.join(opt.save_model_path, opt.log_name, systime)   ### Crea la ruta donde se guardara el estado de la red
-    os.makedirs(save_model_path, exist_ok=True)   ### Crea la carpeta si no está creada
-    model_name = 'epoch_{}_{:03d}.pth'.format(name, epoch)   ### Establece el nombre del archivo con el modelo
-    save_model_path = os.path.join(save_model_path, model_name)   ### Crea la ruta completa del archivo que se creará
-    torch.save(net.state_dict(), save_model_path)   ### Guarda los pesos del modelo
-    print('Checkpoint saved to {}'.format(save_model_path))
-
-### Modifica la semilla del generador de numeros aleatorios y devuelve un generador con la semilla correspondiente
-def get_generator():
-    global operation_seed_counter   ### Accede a la variable externa para modificarla
-    operation_seed_counter += 1   ### Incrementa la semilla
-    g_cuda_generator = torch.Generator(device="cuda")   ### Crea un generador de números aleatorios
-    g_cuda_generator.manual_seed(operation_seed_counter)   ### Establece la semilla con la creada anteriormente
-    return g_cuda_generator
-
-### Clase destinada a la inclusión de ruido artificial a las imágenes de entrada
-class AugmentNoise(object):
-    def __init__(self, style):
-        print(style)
-        if style.startswith('gauss'):   ### Si el ruido elegido es de tipo gaussiano
-            self.params = [
-                float(p) / 255.0 for p in style.replace('gauss', '').split('_')   ### Normaliza los valores de ruido indicados
-            ]
-            if len(self.params) == 1:   ### Si solo hay un elemento el valor es fijo
-                self.style = "gauss_fix"
-            elif len(self.params) == 2:   ### Si hay dos elementos se indica un rango
-                self.style = "gauss_range"
-        elif style.startswith('poisson'):   ### Si el ruido elegido es de tipo poisson
-            self.params = [
-                float(p) for p in style.replace('poisson', '').split('_')   ### Normaliza los valores de ruido indicados
-            ]
-            if len(self.params) == 1:   ### Si solo hay un elemento el valor es fijo
-                self.style = "poisson_fix"
-            elif len(self.params) == 2:   ### Si hay dos elementos se indica un rango
-                self.style = "poisson_range"
-
-    def add_train_noise(self, x):   ### Metodo para incluir ruido en las imagenes de entrenamiento
-        shape = x.shape   ### Guarda las dimensiones de la imagen
-        if self.style == "gauss_fix":   ### Tipo de ruido es gaussiano de valor fijo
-            std = self.params[0]   ### Guarda la desviación estandar que se usará
-            std = std * torch.ones((shape[0], 1, 1, 1), device=x.device)   ### Crea una matriz rellena del valor estándar en el el dispositivo de ejecucion
-            noise = torch.cuda.FloatTensor(shape, device=x.device)   ### Crea un tensor del tamaño de la imagen de tipo float para almacenar el ruido
-            torch.normal(mean=0.0,
-                         std=std,
-                         generator=get_generator(),
-                         out=noise)   ### Genera el ruido normalizado con un generador usando la matriz de valor estandar creada anteriormente
-            return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
-        elif self.style == "gauss_range":   ### Tipo de ruido es gaussiano con valor variable
-            min_std, max_std = self.params   ### Guarda la desviacion minima y maxima
-            std = torch.rand(size=(shape[0], 1, 1, 1),
-                             device=x.device) * (max_std - min_std) + min_std   ### Genera una matriz de valores aleatorios entre el maximo y el minimo de variacion
-            noise = torch.cuda.FloatTensor(shape, device=x.device)   ### Crea un tensor del tamaño de la imagen de tipo float para almacenar el ruido
-            torch.normal(mean=0, std=std, generator=get_generator(), out=noise)   ### Genera el ruido normalizado con un generador usando la matriz de valor estandar creada anteriormente
-            return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
-        elif self.style == "poisson_fix":   ### Tipo de ruido es de poisson de valor fijo
-            lam = self.params[0]   ### Guarda el indice de ruido
-            lam = lam * torch.ones((shape[0], 1, 1, 1), device=x.device)   ### Genera una matriz rellena con el valor del ruido
-            noised = torch.poisson(lam * x, generator=get_generator()) / lam   ### Genera un tensor con distribucion de Poisson normalizado
-            return noised   ### Devuelve la imagen con el ruido ya aplicado
-        elif self.style == "poisson_range":   ### Tipo de ruido es de poisson con valor variable
-            min_lam, max_lam = self.params   ### Guarda el indice minimo y maximo de ruido de Poisson
-            lam = torch.rand(size=(shape[0], 1, 1, 1),
-                             device=x.device) * (max_lam - min_lam) + min_lam   ### Genera una matriz con valores aleatorios entre los valores maximos y minimos
-            noised = torch.poisson(lam * x, generator=get_generator()) / lam   ### Genera un tensor con distribucion de Poisson normalizado
-            return noised   ### Devuelve la imagen con el ruido ya aplicado
-
-    def add_valid_noise(self, x):   ### Metodo para incluir ruido de validacion
-        shape = x.shape   ### Guarda las dimensiones de la imagen
-        if self.style == "gauss_fix":   ### Tipo de ruido gaussiano fijo
-            std = self.params[0]   ### Guarda la desviacion estandar de ruido
-            return np.array(x + np.random.normal(size=shape) * std,
-                            dtype=np.float32)   ### Devuelve la imagen con ruido incluido (imagen mas vector normalizado por nivel de ruido)
-        elif self.style == "gauss_range":   ### Tipo de ruido gaussiano variable
-            min_std, max_std = self.params   ### Guarda los valores de desviacion minimo y maximo
-            std = np.random.uniform(low=min_std, high=max_std, size=(1, 1, 1))   ### Genera un vector de valores normalizados aleatorios entre los valores dados
-            return np.array(x + np.random.normal(size=shape) * std,
-                            dtype=np.float32)   ### Devuelve la imagen con ruido incluido (imagen mas vector normalizado por nivel de ruido)
-        elif self.style == "poisson_fix":   ### Tipo de ruido poisson fijo
-            lam = self.params[0]   ### Guarda el indice de ruido
-            return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)   ### Devuelve la imagen con ruido normalizada
-        elif self.style == "poisson_range":   ### Tipo de ruido poisson variable
-            min_lam, max_lam = self.params   ### Guarda los indices de ruido minimo y maximo
-            lam = np.random.uniform(low=min_lam, high=max_lam, size=(1, 1, 1))   ### Genera un vector de valores normalizados aleatorios entre los valores dados
-            return np.array(np.random.poisson(lam * x) / lam, dtype=np.float32)   ### Devuelve la imagen con ruido normalizada
-
-
-def space_to_depth(x, block_size):
-    n, c, h, w = x.size()   ### Guarda el numero de muestras, canales de la imagen y su alto y ancho
-    unfolded_x = torch.nn.functional.unfold(x, block_size, stride=block_size)   ### 
-    return unfolded_x.view(n, c * block_size**2, h // block_size,
-                           w // block_size)   ### 
-
-
-def generate_mask_pair(img):   ### Genera las mascaras de pixeles que se usaran para generan las subimagenes
-    # prepare masks (N x C x H/2 x W/2)
-    n, c, h, w = img.shape   ### Guarda el numero de muestras, canales de la imagen y su alto y ancho
-    mask1 = torch.zeros(size=(n * h // 2 * w // 2 * 4, ),
-                        dtype=torch.bool,
-                        device=img.device)   ### Genera la máscara para la primera imagen inicializada a 0
-    mask2 = torch.zeros(size=(n * h // 2 * w // 2 * 4, ),
-                        dtype=torch.bool,
-                        device=img.device)   ### Genera la máscara para la segunda imagen inicializada a 0
-    # prepare random mask pairs
-    idx_pair = torch.tensor(
-        [[0, 1], [0, 2], [1, 3], [2, 3], [1, 0], [2, 0], [3, 1], [3, 2]],
-        dtype=torch.int64,
-        device=img.device)   ### Crea un tensor con los pares de indices que indican pixeles vecinos
-    rd_idx = torch.zeros(size=(n * h // 2 * w // 2, ),
-                         dtype=torch.int64,
-                         device=img.device)   ### Crea un tensor de ceros cuyo tamaño es la mitad que la imagen original
-    torch.randint(low=0,
-                  high=8,
-                  size=(n * h // 2 * w // 2, ),
-                  generator=get_generator(),
-                  out=rd_idx)   ### Rellena el tensor de ceros con numeros aleatorios entre 0 y 8
-    rd_pair_idx = idx_pair[rd_idx]   ### Selecciona los indices de pares de pixeles vecinos de cada bloque para posteriormente crear las imagenes
-    rd_pair_idx += torch.arange(start=0,
-                                end=n * h // 2 * w // 2 * 4,
-                                step=4,
-                                dtype=torch.int64,
-                                device=img.device).reshape(-1, 1)   ### Suma a los índices un vector de posiciones incremental de 4 en 4 (cada bloque son 4 pixeles, 2x2)
-    # get masks
-    mask1[rd_pair_idx[:, 0]] = 1   ### Activa las posiciones de la máscara correspondientes a los píxeles de la primera subimagen
-    mask2[rd_pair_idx[:, 1]] = 1   ### Activa las posiciones de la máscara correspondientes a los píxeles de la segunda subimagen
-    return mask1, mask2   ### Retorna las dos mascaras para crear las subimagenes de pixeles vecinos
-
-
-def generate_subimages(img, mask):   ### Genera una subimagen a partir de otra dada y la mascara de pixeles
-    n, c, h, w = img.shape   ### Guarda el numero de muestras, canales de la imagen y su alto y ancho
-    subimage = torch.zeros(n,
-                           c,
-                           h // 2,
-                           w // 2,
-                           dtype=img.dtype,
-                           layout=img.layout,
-                           device=img.device)   ### Crea un tensor inicializado a ceros con sus dimensiones siendo la mitad de la imagen original
-    # per channel
-    for i in range(c):   ### Para cada canal de la nueva imagen se copian los pixeles de la imagen original que indica la mascara
-        img_per_channel = space_to_depth(img[:, i:i + 1, :, :], block_size=2)   ### Se obtiene el canal que indica el indice en bloques de 2x2 (esto es necesario porque las imagenes se van a dividir a la mitad)
-        img_per_channel = img_per_channel.permute(0, 2, 3, 1).reshape(-1)   ### Cambia las capas de orden y las convierte a array
-        subimage[:, i:i + 1, :, :] = img_per_channel[mask].reshape(
-            n, h // 2, w // 2, 1).permute(0, 3, 1, 2)   ### Reconvierte el array a capa de canal y asigna la capa a la nueva imagen
-    return subimage   ### Retorna la subimagen ya creada
-
-
-class DataLoader_Imagenet_val(Dataset):   ### Clase dedicada a la carga del dataset
-    def __init__(self, data_dir, patch=256):   ### Metodo de inicializacion del cargador
-        super(DataLoader_Imagenet_val, self).__init__()   ### Inicializador de la clase padre
-        self.data_dir = data_dir   ### Guarda el directorio de datos
-        self.patch = patch   ### Guarda el tamaño de parche (dimensiones finales)
-        self.train_fns = glob.glob(os.path.join(self.data_dir, "*"))   ### Almacena nombres de imagenes del dataset
-        self.train_fns.sort()   ### Ordena las imagenes del dataset
-        print('fetch {} samples for training'.format(len(self.train_fns))) ### Muestra el numero de imagenes para procesar
-
-    def __getitem__(self, index):   ### Extrae parches de la imagen para la entrada de la red
-        # fetch image
-        fn = self.train_fns[index]   ### Elige la imagen en base al indice dado
-        im = Image.open(fn)   ### Carga la imagen
-        im = np.array(im, dtype=np.float32)   ### Convierte la imagen a un numpy array de tipo float 
-        # random crop
-        H = im.shape[0]   ### Obtiene la altura de la imagen
-        W = im.shape[1]   ### Obtiene el ancho de la imagen
-        if H - self.patch > 0:   ### Si el alto es mas grande que el tamaño maximo, se recorta
-            xx = np.random.randint(0, H - self.patch)   ### Obtiene una posicion aleatoria donde comenzara la altura del parche
-            im = im[xx:xx + self.patch, :, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el alto)
-        if W - self.patch > 0:   ### Si el ancho es mas grande que el tamaño maximo, se recorta
-            yy = np.random.randint(0, W - self.patch)   ### Obtiene una posicion aleatoria donde comenzara la anchura del parche
-            im = im[:, yy:yy + self.patch, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el ancho)
-        # np.ndarray to torch.tensor
-        transformer = transforms.Compose([transforms.ToTensor()])   ### Prepara un transformador a tensor
-        im = transformer(im)   ### Convierte la imagen recortada en un tensor
-        return im   ### Devuelve la imagen final en forma de tensor
-
-    def __len__(self):   ### Metodo propio de la clase para indicar la longitud de los datos
-        return len(self.train_fns)   ### Devuelve la cantidad de imagenes que hay en el dataset cargado
-
-
-def validation_kodak(dataset_dir):   ###  Metodo para cargar el dataset kodak
-    fns = glob.glob(os.path.join(dataset_dir, "*"))   ### Carga de los nombres del directorio
-    fns.sort()   ### Ordenar nombres del directorio
-    images = []   ### Creacion de array para las imagenes ya cargadas
-    for fn in fns:   ### Para cada imagen del directorio
-        im = Image.open(fn)   ### Carga la imagen
-        im = np.array(im, dtype=np.float32)   ### Transforma la imagen a numpy array de tipo float 
-        images.append(im)   ### Añade la imagen al array
-    return images   ### Devuelve el array de imagenes ya cargadas
-
-
-def validation_bsd300(dataset_dir):   ### Metodo para cargar el dataset BSD300
-    fns = []   ### Crea un array para los archivos del directorio
-    fns.extend(glob.glob(os.path.join(dataset_dir, "test", "*")))   ### Carga los archivos en el array 
-    fns.sort()   ### Ordena los nombres de los archivos
-    images = []   ### Crea un array para las imagenes
-    for fn in fns:   ### Para cada archivo en el directorio
-        im = Image.open(fn)   ### Carga la imagen
-        im = np.array(im, dtype=np.float32)   ### Transforma la imagen a numpy array de tipo float 
-        images.append(im)   ### Añade la imagen al array
-    return images   ### Devuelve el array de imagenes
-
-
-def validation_Set14(dataset_dir):   ### Metodo para cargar el dataset Set14
-    fns = glob.glob(os.path.join(dataset_dir, "*"))   ### Carga los nombres del directorio
-    fns.sort()   ### Ordena los nombres de las imagenes
-    images = []   ### Crea un array para las imagenes
-    for fn in fns:   ### Por cada archivo del directorio
-        im = Image.open(fn)   ### Carga la imagen
-        im = np.array(im, dtype=np.float32)   ### Transforma la imagen a numpy array de tipo float 
-        images.append(im)   ### Añade la imagen al array
-    return images   ### Devuelve el array de imagenes ya cargadas
-
-
-def ssim(prediction, target):   ### Metodo para calcular el ssim (structural similarity index measure) entre dos imagenes
-    ##### Se calculan las dos constantes estabilizadoras de la division
-    C1 = (0.01 * 255)**2
-    C2 = (0.03 * 255)**2
-    ### Se transforman las imagenes a tipo float de 64 bits
-    img1 = prediction.astype(np.float64)
-    img2 = target.astype(np.float64)
-    kernel = cv2.getGaussianKernel(11, 1.5)   ### Se crea un kernel de 11x11 (radio de 5 desde el centro) con desviacion 1.5
-    ### Multiplica el kernel por si mismo traspuesto (la matriz resultado es simetrica)
-    window = np.outer(kernel, kernel.transpose())
-    
-    #mu es la media de la muestra de pixeles de la imagen y sigma square la varianca de la imagen
-    mu1 = cv2.filter2D(img1, -1, window)[5:-5, 5:-5]  # valid
-    mu2 = cv2.filter2D(img2, -1, window)[5:-5, 5:-5]
-    ##### Se obtienen las versiones cuadradas de ambos parametros y su producto para futuros calculos
-    mu1_sq = mu1**2 
-    mu2_sq = mu2**2 
-    mu1_mu2 = mu1 * mu2
-    sigma1_sq = cv2.filter2D(img1**2, -1, window)[5:-5, 5:-5] - mu1_sq   ### 
-    sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq   ### 
-    sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2   ### 
-    ssim_map = ((2 * mu1_mu2 + C1) *
-                (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                       (sigma1_sq + sigma2_sq + C2))   ### Obtiene el mapa de ssim (se esta trabajando con matrices, con lo que es el conjunto de ssim de las ventanas obtenidas de las imagenes)
-    return ssim_map.mean()   ### Se calcula la media de los ssim de cada ventana obtenida
-
-
-def calculate_ssim(target, ref):   ### Metodo para preparar las opciones y calcular posteriormente el ssim
-    '''
-    calculate SSIM
-    the same outputs as MATLAB's
-    img1, img2: [0, 255]
-    '''
-    ### Se convierten ambas imagenes a tipo float de 64 bits
-    img1 = np.array(target, dtype=np.float64)
-    img2 = np.array(ref, dtype=np.float64) 
-    if not img1.shape == img2.shape:   ### Comprueba que las imagenes poseen el mismo tamaño
-        raise ValueError('Input images must have the same dimensions.')
-    if img1.ndim == 2:   ### Si la imagen es en blanco y negro (alto x ancho)
-        return ssim(img1, img2)   ### Devuelve el ssim
-    elif img1.ndim == 3:   ### Si la imagen tiene mas canales, por ejemplo a color (alto x ancho x canales)
-        if img1.shape[2] == 3:   ### Si son tres canales
-            ssims = []   ### Se crea un array para almacenar los ssim de cada uno
-            for i in range(3):   ### Para cada canal
-                ssims.append(ssim(img1[:, :, i], img2[:, :, i]))   ### Se obtiene el ssim de los respectivos canales de ambas imagenes
-            return np.array(ssims).mean()   ### Se devuelve la media de los ssim
-        elif img1.shape[2] == 1:   ### Si la dimension de los canales es 1 (es blanco y negro pero se ha cargado de esta manera)
-            return ssim(np.squeeze(img1), np.squeeze(img2))   ### Comprime las imagenes a 2 dimensiones y calcula su psnr
-    else:   ### En cualquier otro caso hay un error con la imagen y salta un error
-        raise ValueError('Wrong input image dimensions.')
-
-
-def calculate_psnr(target, ref):   ### Metodo para calcular el psnr
-    ### Se convierten ambas imagenes a tipo float de 32 bits
-    img1 = np.array(target, dtype=np.float32)
-    img2 = np.array(ref, dtype=np.float32)
-    diff = img1 - img2   ### Se calcula la diferencia entre las imagenes
-    psnr = 10.0 * np.log10(255.0 * 255.0 / np.mean(np.square(diff)))   ### Aplica la formula del psnr
-    ##### La media del cuadrado de la diferencia es lo mismo que calcular el MSE (Mean Square Error) entre las imagenes
-    ##### 255.0 * 255.0 es lo mismo que MAX², ya que 255 es el maximo valor posible para un pixel
-    return psnr   ### Devuelve el psnr calculado
 
 
 # Training Set
@@ -331,11 +60,19 @@ TrainingLoader = DataLoader(dataset=TrainingDataset,
 Kodak_dir = os.path.join(opt.val_dirs, "Kodak")   ### Directorio del dataset Kodak
 BSD300_dir = os.path.join(opt.val_dirs, "BSD300")   ### Directorio del dataset BSD300
 Set14_dir = os.path.join(opt.val_dirs, "Set14")   ### Directorio del dataset Set14
+
+validation_loader = DataLoader_Validation(Kodak_dir, BSD300_dir, Set14_dir)
 valid_dict = {
+    "Kodak": validation_loader.kodak(),
+    "BSD300": validation_loader.bsd300(),
+    "Set14": validation_loader.set14()
+}
+
+"""valid_dict = {
     "Kodak": validation_kodak(Kodak_dir),
     "BSD300": validation_bsd300(BSD300_dir),
     "Set14": validation_Set14(Set14_dir)
-}   ### Creacion de un diccionario para la obtencion de los datasets
+}"""   ### Creacion de un diccionario para la obtencion de los datasets
 
 # Noise adder
 noise_adder = AugmentNoise(style=opt.noisetype)   ### Creacion de objeto que servira para la inclusion de ruido artificial
