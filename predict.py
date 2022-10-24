@@ -2,7 +2,6 @@ from __future__ import division
 import os
 import time
 import glob
-import datetime
 import argparse
 import numpy as np
 
@@ -15,6 +14,7 @@ from torch.utils.data import Dataset
 from arch_unet import UNetimport torch
 from dataset_utils import AugmentNoise, DataLoader_Validation
 from noise_metrics import calculate_ssim, calculate_psnr
+import settings
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--noisetype", type=str, default="gauss25")
@@ -29,7 +29,8 @@ parser.add_argument('--n_channel', type=int, default=3)
 
 
 opt, _ = parser.parse_known_args()
-systime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
+settings.init()
+
 
 # Validation dataset
 Kodak_dir = os.path.join(opt.val_dirs, "Kodak")   ### Directorio del dataset Kodak
@@ -44,8 +45,9 @@ valid_dict = {
 }
 
 valid_repeat_times = {"Kodak": 10, "BSD300": 3, "Set14": 20}
-validation_path = os.path.join(save_path, "validation")
+validation_path = os.path.join(save_path, model_path, settings.systime, "validation")
 os.makedirs(validation_path, exist_ok=True)
+
 
 
 noise_adder = AugmentNoise(style=opt.noisetype)

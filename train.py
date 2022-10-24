@@ -65,12 +65,6 @@ valid_dict = {
     "Set14": validation_loader.set14()
 }
 
-"""valid_dict = {
-    "Kodak": validation_kodak(Kodak_dir),
-    "BSD300": validation_bsd300(BSD300_dir),
-    "Set14": validation_Set14(Set14_dir)
-}"""   ### Creacion de un diccionario para la obtencion de los datasets
-
 # Noise adder
 noise_adder = AugmentNoise(style=opt.noisetype)   ### Creacion de objeto que servira para la inclusion de ruido artificial
 
