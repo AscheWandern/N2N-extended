@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import torch
+from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
@@ -15,12 +16,13 @@ from arch_unet import UNet
 from dataset_utils import AugmentNoise, DataLoader_Validation
 from noise_metrics import calculate_ssim, calculate_psnr
 import settings
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--noisetype", type=str, default="gauss25")
 parser.add_argument('--val_dirs', type=str, default='./validation')
 parser.add_argument('--models_dir_path', type=str, default='./pretrained_model')
-parser.add_argument('model_path', type=str, default='model_gauss25_b4e100r02.pth')
+parser.add_argument('--model_path', type=str, default='model_gauss25_b4e100r02.pth')
 parser.add_argument('--save_path', type=str, default='./results')
 parser.add_argument('--gpu_devices', default='0', type=str)
 parser.add_argument('--parallel', action='store_true')
@@ -45,7 +47,7 @@ valid_dict = {
 }
 
 valid_repeat_times = {"Kodak": 10, "BSD300": 3, "Set14": 20}
-validation_path = os.path.join(save_path, model_path, settings.systime, "validation")
+validation_path = os.path.join(opt.save_path, opt.model_path, settings.systime, "validation")
 os.makedirs(validation_path, exist_ok=True)
 
 
@@ -72,7 +74,8 @@ for valid_name, valid_images in valid_dict.items():   ### Para cada dataset de v
     psnr_result = []   ### Array para almacenar los psnr (Peak Signal Noise Ratio)
     ssim_result = []   ### Array para almacenar los ssim (Structural Similarity Index Measure)
     repeat_times = valid_repeat_times[valid_name]   ### Se obtiene cuantas veces va a procesarse cada dataset
-    for i in range(repeat_times):   ### 
+    print("Dataset: {}".format(valid_name))
+    for i in tqdm(range(repeat_times)):   ### 
         for idx, im in enumerate(valid_images):   ### Para cada imagen del dataset actual
             origin255 = im.copy()   ### Se crea una copia de la imagen original
             origin255 = origin255.astype(np.uint8)   ### Se convierte a tipo entero sin signo
@@ -115,4 +118,4 @@ for valid_name, valid_images in valid_dict.items():   ### Para cada dataset de v
     log_path = os.path.join(validation_path,
                             "A_log_{}.csv".format(valid_name))   ### Crea la ruta para guardar un fichero de registro
     with open(log_path, "a") as f:   ### Crea un flujo de escritura apuntando al final del fichero
-        f.writelines("{},{},{}\n".format(epoch, avg_psnr, avg_ssim))   ### Escribe en el fichero la epoca y las medidas obtenidas
+        f.writelines("{},{}\n".format(avg_psnr, avg_ssim))   ### Escribe en el fichero la epoca y las medidas obtenidas
