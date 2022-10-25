@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
-from arch_unet import UNetimport torch
+from arch_unet import UNet
 from dataset_utils import AugmentNoise, DataLoader_Validation
 from noise_metrics import calculate_ssim, calculate_psnr
 import settings
@@ -64,7 +64,6 @@ if opt.parallel:   ### En caso de incluir la opcion de paralelizacion, se activa
 # Load the weights of the network and put it on evaluation mode
 network.load_state_dict(torch.load(load_path))
 network = network.cuda()
-
 network.eval()
 
 np.random.seed(101)
@@ -79,9 +78,8 @@ for valid_name, valid_images in valid_dict.items():   ### Para cada dataset de v
             origin255 = origin255.astype(np.uint8)   ### Se convierte a tipo entero sin signo
             im = np.array(im, dtype=np.float32) / 255.0   ### Se convierte a numpy array de tipo float 32
             noisy_im = noise_adder.add_valid_noise(im)   ### Añade ruido artificial a la imagen preparada
-            if epoch == opt.n_snapshot:   ### Si debe hacerse punto de guardado en esta epoca
-                noisy255 = noisy_im.copy()   ### Se hace una copia de la imagen ruidosa
-                noisy255 = np.clip(noisy255 * 255.0 + 0.5, 0,
+            noisy255 = noisy_im.copy()   ### Se hace una copia de la imagen ruidosa
+            noisy255 = np.clip(noisy255 * 255.0 + 0.5, 0,
                                     255).astype(np.uint8)   ### Se desnormaliza la imagen, limitando los valores de los pixeles entre 0 y 255  (np.clip trunca los valores menores y mayores que el minimo y maximo indicado)
             # padding to square
             H = noisy_im.shape[0]   ### Se obtiene el alto de la imagen
