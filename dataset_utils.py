@@ -95,14 +95,7 @@ class DataLoader_Imagenet_val(Dataset):
         im = Image.open(fn)   ### Carga la imagen
         im = np.array(im, dtype=np.float32)   ### Convierte la imagen a un numpy array de tipo float 
         # random crop
-        H = im.shape[0]   ### Obtiene la altura de la imagen
-        W = im.shape[1]   ### Obtiene el ancho de la imagen
-        if H - self.patch > 0:   ### Si el alto es mas grande que el tamaño maximo, se recorta
-            xx = np.random.randint(0, H - self.patch)   ### Obtiene una posicion aleatoria donde comenzara la altura del parche
-            im = im[xx:xx + self.patch, :, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el alto)
-        if W - self.patch > 0:   ### Si el ancho es mas grande que el tamaño maximo, se recorta
-            yy = np.random.randint(0, W - self.patch)   ### Obtiene una posicion aleatoria donde comenzara la anchura del parche
-            im = im[:, yy:yy + self.patch, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el ancho)
+        im = crop_image(im, self.patch)
         # np.ndarray to torch.tensor
         transformer = transforms.Compose([transforms.ToTensor()])   ### Prepara un transformador a tensor
         im = transformer(im)   ### Convierte la imagen recortada en un tensor
@@ -110,6 +103,18 @@ class DataLoader_Imagenet_val(Dataset):
 
     def __len__(self):   ### Metodo propio de la clase para indicar la longitud de los datos
         return len(self.train_fns)   ### Devuelve la cantidad de imagenes que hay en el dataset cargado
+
+
+def crop_image(image, patch): ### Crea un recorte aleatorio de la imagen con limite de dimension indicado por el parametro
+    H = image.shape[0]   ### Obtiene la altura de la imagen
+    W = image.shape[1]   ### Obtiene el ancho de la imagen
+    if H - patch > 0:   ### Si el alto es mas grande que el tamaño maximo, se recorta
+        xx = np.random.randint(0, H - patch)   ### Obtiene una posicion aleatoria donde comenzara la altura del parche
+        image = image[xx:xx + patch, :, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el alto)
+    if W - patch > 0:   ### Si el ancho es mas grande que el tamaño maximo, se recorta
+        yy = np.random.randint(0, W - patch)   ### Obtiene una posicion aleatoria donde comenzara la anchura del parche
+        image = image[:, yy:yy + patch, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el ancho)
+    return image
 
 
 class DataLoader_Validation(object):

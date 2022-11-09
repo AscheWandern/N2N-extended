@@ -13,7 +13,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from arch_unet import UNet
-from dataset_utils import AugmentNoise, DataLoader_Imagenet_val, DataLoader_Validation
+from dataset_utils import AugmentNoise, DataLoader_Imagenet_val, DataLoader_Validation, crop_image
 from noise_metrics import calculate_ssim, calculate_psnr
 from generator_subimages import generate_mask_pair, generate_subimages
 from utils import checkpoint
@@ -38,6 +38,7 @@ parser.add_argument('--patchsize', type=int, default=256)
 parser.add_argument("--Lambda1", type=float, default=1.0)
 parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
+parser.add_argument("--crop_size", type=int, default=None)
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
@@ -159,6 +160,8 @@ for epoch in range(1, opt.n_epoch + 1):
             repeat_times = valid_repeat_times[valid_name]   ### Se obtiene cuantas veces va a procesarse cada dataset
             for i in range(repeat_times):   ### 
                 for idx, im in enumerate(valid_images):   ### Para cada imagen del dataset actual
+                    if opt.crop_size is not None: ### Se realiza un recorte aleatorio a la imagen si se indica un tamaño
+                        im = crop_size(im, opt.crop_size)
                     origin255 = im.copy()   ### Se crea una copia de la imagen original
                     origin255 = origin255.astype(np.uint8)   ### Se convierte a tipo entero sin signo
                     im = np.array(im, dtype=np.float32) / 255.0   ### Se convierte a numpy array de tipo float 32
@@ -167,14 +170,15 @@ for epoch in range(1, opt.n_epoch + 1):
                         noisy255 = noisy_im.copy()   ### Se hace una copia de la imagen ruidosa
                         noisy255 = np.clip(noisy255 * 255.0 + 0.5, 0,
                                            255).astype(np.uint8)   ### Se desnormaliza la imagen, limitando los valores de los pixeles entre 0 y 255  (np.clip trunca los valores menores y mayores que el minimo y maximo indicado)
-                    # padding to square
-                    H = noisy_im.shape[0]   ### Se obtiene el alto de la imagen
-                    W = noisy_im.shape[1]   ### Se obtiene el ancho de la imagen
-                    val_size = (max(H, W) + 31) // 32 * 32
-                    noisy_im = np.pad(
-                        noisy_im,
-                        [[0, val_size - H], [0, val_size - W], [0, 0]],
-                        'reflect')   ### 
+                    if opt.crop_size is None: ### Si no es necesario recortar, se ajusta la imagen para que sea cuadrada
+                        # padding to square
+                        H = noisy_im.shape[0]   ### Se obtiene el alto de la imagen
+                        W = noisy_im.shape[1]   ### Se obtiene el ancho de la imagen
+                        val_size = (max(H, W) + 31) // 32 * 32
+                        noisy_im = np.pad(
+                            noisy_im,
+                            [[0, val_size - H], [0, val_size - W], [0, 0]],
+                            'reflect')   ### 
                     transformer = transforms.Compose([transforms.ToTensor()])   ### Prepara un transformador a tensor
                     noisy_im = transformer(noisy_im)   ### Convierte la imagen ruidosa en un tensor
                     noisy_im = torch.unsqueeze(noisy_im, 0)   ### Devuelve la imagen tensor dentro de otro tensor en la posicion 0
