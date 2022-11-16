@@ -170,10 +170,10 @@ for epoch in range(1, opt.n_epoch + 1):
                         noisy255 = noisy_im.copy()   ### Se hace una copia de la imagen ruidosa
                         noisy255 = np.clip(noisy255 * 255.0 + 0.5, 0,
                                            255).astype(np.uint8)   ### Se desnormaliza la imagen, limitando los valores de los pixeles entre 0 y 255  (np.clip trunca los valores menores y mayores que el minimo y maximo indicado)
+                    H = noisy_im.shape[0]   ### Se obtiene el alto de la imagen
+                    W = noisy_im.shape[1]   ### Se obtiene el ancho de la imagen
                     if opt.crop_size is None: ### Si no es necesario recortar, se ajusta la imagen para que sea cuadrada
                         # padding to square
-                        H = noisy_im.shape[0]   ### Se obtiene el alto de la imagen
-                        W = noisy_im.shape[1]   ### Se obtiene el ancho de la imagen
                         val_size = (max(H, W) + 31) // 32 * 32
                         noisy_im = np.pad(
                             noisy_im,
