@@ -161,7 +161,7 @@ for epoch in range(1, opt.n_epoch + 1):
             for i in range(repeat_times):   ### 
                 for idx, im in enumerate(valid_images):   ### Para cada imagen del dataset actual
                     if opt.crop_size is not None: ### Se realiza un recorte aleatorio a la imagen si se indica un tamaño
-                        im = crop_image(im, opt.crop_size)
+                        im = crop_image(im, opt.crop_size, center_crop=True)
                     origin255 = im.copy()   ### Se crea una copia de la imagen original
                     origin255 = origin255.astype(np.uint8)   ### Se convierte a tipo entero sin signo
                     im = np.array(im, dtype=np.float32) / 255.0   ### Se convierte a numpy array de tipo float 32

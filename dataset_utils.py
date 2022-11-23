@@ -105,14 +105,20 @@ class DataLoader_Imagenet_val(Dataset):
         return len(self.train_fns)   ### Devuelve la cantidad de imagenes que hay en el dataset cargado
 
 
-def crop_image(image, patch): ### Crea un recorte aleatorio de la imagen con limite de dimension indicado por el parametro
+def crop_image(image, patch=256, center_crop=False): ### Crea un recorte aleatorio de la imagen con limite de dimension indicado por el parametro
     H = image.shape[0]   ### Obtiene la altura de la imagen
     W = image.shape[1]   ### Obtiene el ancho de la imagen
     if H - patch > 0:   ### Si el alto es mas grande que el tamaño maximo, se recorta
-        xx = np.random.randint(0, H - patch)   ### Obtiene una posicion aleatoria donde comenzara la altura del parche
+        if center_crop:
+            xx = H//2 - patch//2
+        else
+            xx = np.random.randint(0, H - patch)   ### Obtiene una posicion aleatoria donde comenzara la altura del parche
         image = image[xx:xx + patch, :, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el alto)
     if W - patch > 0:   ### Si el ancho es mas grande que el tamaño maximo, se recorta
-        yy = np.random.randint(0, W - patch)   ### Obtiene una posicion aleatoria donde comenzara la anchura del parche
+        if center_crop:
+            yy = W//2 - patch//2
+        else:
+            yy = np.random.randint(0, W - patch)   ### Obtiene una posicion aleatoria donde comenzara la anchura del parche
         image = image[:, yy:yy + patch, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el ancho)
     return image
 
