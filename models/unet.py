@@ -36,7 +36,7 @@ class UpsampleCat(nn.Module):
         self.in_nc = in_nc
         self.out_nc = out_nc
 
-        self.deconv = nn.ConvTranspose2d(in_nc, out_nc, 2, 2, 0, False)
+        self.deconv = nn.ConvTranspose2d(in_nc, out_nc, 2, 2, 0, bias=False)
         initialize_weights(self.deconv, 0.1)
 
     def forward(self, x1, x2):
