@@ -111,7 +111,7 @@ def crop_image(image, patch=256, center_crop=False): ### Crea un recorte aleator
     if H - patch > 0:   ### Si el alto es mas grande que el tamaño maximo, se recorta
         if center_crop:
             xx = H//2 - patch//2
-        else
+        else:
             xx = np.random.randint(0, H - patch)   ### Obtiene una posicion aleatoria donde comenzara la altura del parche
         image = image[xx:xx + patch, :, :]   ### Obtiene la imagen a partir de la posicion indicada (recorta el alto)
     if W - patch > 0:   ### Si el ancho es mas grande que el tamaño maximo, se recorta
