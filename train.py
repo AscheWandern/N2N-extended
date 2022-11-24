@@ -49,6 +49,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de disposi
 settings.init()
 
 
+torch.manual_seed(settings.torch_seed)
 # Training Set
 TrainingDataset = DataLoader_Imagenet_val(opt.data_dir, patch=opt.patchsize)   ### Preparacion de la informacion para la carga del dataset
 TrainingLoader = DataLoader(dataset=TrainingDataset,

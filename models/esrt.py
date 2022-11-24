@@ -251,7 +251,6 @@ class ESRT(nn.Module):
 
 if __name__ == "__main__":
     import numpy as np
-    torch.manual_seed(settings.torch_seed)
     x = torch.from_numpy(np.zeros((10, 3, 32, 32), dtype=np.float32))
     print(x.shape)
     net = ESRT(in_nc=3, n_feature=48) #, out_nc=3, blindspot=False)
