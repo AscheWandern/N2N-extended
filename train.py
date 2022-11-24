@@ -39,6 +39,9 @@ parser.add_argument("--Lambda1", type=float, default=1.0)
 parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
+parser.add_argument('--arch', type=str, required=True, \
+            choices=["unet", "esrt"], \
+            help='dataset (options: unet, esrt)')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
@@ -70,9 +73,12 @@ valid_dict = {
 noise_adder = AugmentNoise(style=opt.noisetype)   ### Creacion de objeto que servira para la inclusion de ruido artificial
 
 # Network
-network = UNet(in_nc=opt.n_channel,
+if opt.arch == "unet":
+    network = UNet(in_nc=opt.n_channel,
                out_nc=opt.n_channel,
                n_feature=opt.n_feature)   ### Creación de la red neuronal
+elif opt.arch == "esrt":
+    network = ESRT(in_nc=opt.n_channel, n_feature=opt.n_feature)
 if opt.parallel:   ### En caso de incluir la opcion de paralelizacion, se activa
     network = torch.nn.DataParallel(network)
 network = network.cuda()   ### Se pasa la red a la GPU para aligerar la computacion
