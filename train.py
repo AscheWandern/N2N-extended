@@ -40,7 +40,7 @@ parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
 parser.add_argument("--torch_seed", type=int, default=3407)
-parser.add_argument("--save_image", type=bool, defualt=True)
+parser.add_argument("--save_image", type=bool, default=True)
 parser.add_argument("--manual_seed", action='store_true')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
