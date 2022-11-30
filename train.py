@@ -39,12 +39,13 @@ parser.add_argument("--Lambda1", type=float, default=1.0)
 parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
+parser.add_argument("--torch_seed", type=int, default=3407)
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
 settings.init()
 
-
+torch.manual_seed(opt.torch_seed)
 # Training Set
 TrainingDataset = DataLoader_Imagenet_val(opt.data_dir, patch=opt.patchsize)   ### Preparacion de la informacion para la carga del dataset
 TrainingLoader = DataLoader(dataset=TrainingDataset,
