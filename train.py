@@ -40,12 +40,17 @@ parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
 parser.add_argument("--torch_seed", type=int, default=3407)
+parser.add_argument("--save_image", type=bool, defualt=True)
+parser.add_argument("--manual_seed", action='store_true')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
 settings.init()
 
-torch.manual_seed(opt.torch_seed)
+if opt.manual_seed:
+    torch.manual_seed(opt.torch_seed)
+    np.random.seed(101)
+
 # Training Set
 TrainingDataset = DataLoader_Imagenet_val(opt.data_dir, patch=opt.patchsize)   ### Preparacion de la informacion para la carga del dataset
 TrainingLoader = DataLoader(dataset=TrainingDataset,
@@ -201,7 +206,7 @@ for epoch in range(1, opt.n_epoch + 1):
                     ssim_result.append(cur_ssim)   ### Almacena el ssim obtenido
 
                     # visualization
-                    if i == 0 and epoch == opt.n_snapshot:   ### Si es la primera imagen que se procesa y en la epoca actual se realiza punto de control
+                    if i == 0 and epoch == opt.n_snapshot and opt.save_image:   ### Si es la primera imagen que se procesa y en la epoca actual se realiza punto de control
                         save_path = os.path.join(
                             validation_path,
                             "{}_{:03d}-{:03d}_clean.png".format(
