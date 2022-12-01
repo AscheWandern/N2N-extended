@@ -42,6 +42,7 @@ parser.add_argument("--crop_size", type=int, default=None)
 parser.add_argument("--torch_seed", type=int, default=3407)
 parser.add_argument("--no_visualization", action='store_false')
 parser.add_argument("--manual_seed", action='store_true')
+parser.add_argument("--resume", action='store_true')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
@@ -98,11 +99,12 @@ scheduler = lr_scheduler.MultiStepLR(optimizer,
 print("Batchsize={}, number of epoch={}".format(opt.batchsize, opt.n_epoch))
 
 checkpoint(network, 0, "model", opt.save_model_path, opt.log_name)   ### Creacion de un punto de guardado del modelo antes de entrenar
+print("Torch seed={}".format(torch.seed()))
 print('init finish')
 
 ### Comienzo del algoritmo de entrenamiento
 for epoch in range(1, opt.n_epoch + 1):   
-    cnt = 0   ### Se resetea el contador a 0 para cada epoca
+    cnt = mean_loss1 = mean_loss2 = mean_loss_full = mean_time = 0
 
     for param_group in optimizer.param_groups:   ### Extrae los diferentes lr que pueda haber y los muestra
         current_lr = param_group['lr']
@@ -128,7 +130,8 @@ for epoch in range(1, opt.n_epoch + 1):
 
         noisy_output = network(noisy_sub1)   ### La primera subimagen ruidosa se pasa por la red para obtener una salida limpia
         noisy_target = noisy_sub2   ### La segunda subimagen ruidosa se convierte en el resultado esperado
-        Lambda = epoch / opt.n_epoch * opt.increase_ratio   ### Se calcula el parametro lambda
+        
+        ### Se calcula el parametro lambda
         diff = noisy_output - noisy_target   ### Se calcula la diferencia entre salida de la red y salida esperada
         exp_diff = noisy_sub1_denoised - noisy_sub2_denoised   ### Se calcula la diferencia entre las subimagenes de la imagen limpiada por la red
 
@@ -140,12 +143,24 @@ for epoch in range(1, opt.n_epoch + 1):
 
         loss_all.backward()   ### Se propaga el error por la red acumulando el gradiente
         optimizer.step()   ### El optimizador actualiza los parametros en funcion del gradiente
+        if not opt.resume:
+            print(
+                '{:04d} {:05d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'
+                .format(epoch, iteration, np.mean(loss1.item()), Lambda,
+                        np.mean(loss2.item()), np.mean(loss_all.item()),
+                        time.time() - st))
+        else:
+            cnt += 1
+            mean_loss1 += np.mean(loss1.item())
+            mean_loss2 += np.mean(loss2.item())
+            mean_loss_full += np.mean(loss_all.item())
+            mean_time += (time.time() - st)
+    if opt.resume:
         print(
-            '{:04d} {:05d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'
-            .format(epoch, iteration, np.mean(loss1.item()), Lambda,
-                    np.mean(loss2.item()), np.mean(loss_all.item()),
-                    time.time() - st))
-
+                'Resume: {:04d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'
+                .format(epoch, mean_loss1 / cnt, Lambda,
+                        mean_loss2 / cnt, mean_loss_full / cnt,
+                        mean_time / cnt))
     scheduler.step()   ### Se indica al planificador que se ha realizado una etapa
 
     if epoch % opt.n_snapshot == 0 or epoch == opt.n_epoch:   ### Si esta epoca esta marcada para realizar un guardado o es la ultima, se realiza un punto de guardado de la red
@@ -207,7 +222,7 @@ for epoch in range(1, opt.n_epoch + 1):
                     
                     if opt.no_visualization:  #Por defecto está a True, salvo que se invoque en el comando de ejecucion
                         # visualization
-                        if i == 0 and epoch == opt.n_snapshot and :   ### Si es la primera imagen que se procesa y en la epoca actual se realiza punto de control
+                        if i == 0 and epoch == opt.n_snapshot:   ### Si es la primera imagen que se procesa y en la epoca actual se realiza punto de control
                             save_path = os.path.join(
                                 validation_path,
                                 "{}_{:03d}-{:03d}_clean.png".format(
