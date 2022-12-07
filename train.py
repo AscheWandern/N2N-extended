@@ -41,16 +41,12 @@ parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
 parser.add_argument("--torch_seed", type=int, default=3407)
 parser.add_argument("--no_visualization", action='store_false')
-parser.add_argument("--manual_seed", action='store_true')
 parser.add_argument("--resume", action='store_true')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
 settings.init()
 
-if opt.manual_seed:
-    torch.manual_seed(opt.torch_seed)
-    np.random.seed(101)
 
 # Training Set
 TrainingDataset = DataLoader_Imagenet_val(opt.data_dir, patch=opt.patchsize)   ### Preparacion de la informacion para la carga del dataset
