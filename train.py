@@ -41,7 +41,8 @@ parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
 parser.add_argument("--torch_seed", type=int, default=3407)
 parser.add_argument("--no_visualization", action='store_false')
-parser.add_argument("--resume", action='store_true')
+parser.add_argument("--overview", action='store_true')
+parser.add_argument("--", action='store_true')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
@@ -139,7 +140,7 @@ for epoch in range(1, opt.n_epoch + 1):
 
         loss_all.backward()   ### Se propaga el error por la red acumulando el gradiente
         optimizer.step()   ### El optimizador actualiza los parametros en funcion del gradiente
-        if not opt.resume:
+        if not opt.overview:
             print(
                 '{:04d} {:05d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'
                 .format(epoch, iteration, np.mean(loss1.item()), Lambda,
@@ -151,9 +152,9 @@ for epoch in range(1, opt.n_epoch + 1):
             mean_loss2 += np.mean(loss2.item())
             mean_loss_full += np.mean(loss_all.item())
             mean_time += (time.time() - st)
-    if opt.resume:
+    if opt.overview:
         print(
-                'Resume: {:04d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'
+                'Overview: {:04d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'
                 .format(epoch, mean_loss1 / cnt, Lambda,
                         mean_loss2 / cnt, mean_loss_full / cnt,
                         mean_time / cnt))
