@@ -40,7 +40,6 @@ parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
 parser.add_argument("--torch_seed", type=int, default=3407)
-parser.add_argument("--no_visualization", action='store_false')
 parser.add_argument("--overview", action='store_true')
 parser.add_argument("--", action='store_true')
 
@@ -217,27 +216,26 @@ for epoch in range(1, opt.n_epoch + 1):
                                               pred255.astype(np.float32))   ### Calcula el ssim entre la imagen original y la obtenida
                     ssim_result.append(cur_ssim)   ### Almacena el ssim obtenido
                     
-                    if opt.no_visualization:  #Por defecto está a True, salvo que se invoque en el comando de ejecucion
-                        # visualization
-                        if i == 0 and epoch == opt.n_snapshot:   ### Si es la primera imagen que se procesa y en la epoca actual se realiza punto de control
-                            save_path = os.path.join(
-                                validation_path,
-                                "{}_{:03d}-{:03d}_clean.png".format(
-                                    valid_name, idx, epoch))   ### Se crea el nombre de ruta para almacenar la imagen original
-                            Image.fromarray(origin255).convert('RGB').save(
-                                save_path)   ### Guarda en la ruta creada la imagen original
-                            save_path = os.path.join(
-                                validation_path,
-                                "{}_{:03d}-{:03d}_noisy.png".format(
-                                    valid_name, idx, epoch))   ### Se crea el nombre de ruta para almacenar la imagen con ruido
-                            Image.fromarray(noisy255).convert('RGB').save(
-                                save_path)   ### Guarda en la ruta creada la imagen original
-                        if i == 0 and opt.save_image:   ### 
-                            save_path = os.path.join(
-                                validation_path,
-                                "{}_{:03d}-{:03d}_denoised.png".format(
-                                    valid_name, idx, epoch))   ### Se crea el nombre de ruta para almacenar la imagen limpia generada
-                            Image.fromarray(pred255).convert('RGB').save(save_path)   ### Guarda en la ruta creada la imagen original
+                    # visualization
+                    if i == 0 and epoch == opt.n_snapshot:   ### Si es la primera imagen que se procesa y en la epoca actual se realiza punto de control
+                        save_path = os.path.join(
+                            validation_path,
+                            "{}_{:03d}-{:03d}_clean.png".format(
+                                valid_name, idx, epoch))   ### Se crea el nombre de ruta para almacenar la imagen original
+                        Image.fromarray(origin255).convert('RGB').save(
+                            save_path)   ### Guarda en la ruta creada la imagen original
+                        save_path = os.path.join(
+                            validation_path,
+                            "{}_{:03d}-{:03d}_noisy.png".format(
+                                valid_name, idx, epoch))   ### Se crea el nombre de ruta para almacenar la imagen con ruido
+                        Image.fromarray(noisy255).convert('RGB').save(
+                            save_path)   ### Guarda en la ruta creada la imagen original
+                    if i == 0:   ### 
+                        save_path = os.path.join(
+                            validation_path,
+                            "{}_{:03d}-{:03d}_denoised.png".format(
+                                valid_name, idx, epoch))   ### Se crea el nombre de ruta para almacenar la imagen limpia generada
+                        Image.fromarray(pred255).convert('RGB').save(save_path)   ### Guarda en la ruta creada la imagen original
 
             psnr_result = np.array(psnr_result)   ### Convierte el array de los psnr a tipo numpy
             avg_psnr = np.mean(psnr_result)   ### Obtiene la media del psnr de todas las imagenes evaluadas
