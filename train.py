@@ -134,7 +134,7 @@ for epoch in range(1, opt.n_epoch + 1):
         ### Se calcula el parametro lambda
         diff = noisy_output - noisy_target   ### Se calcula la diferencia entre salida de la red y salida esperada
         exp_diff = noisy_sub1_denoised - noisy_sub2_denoised   ### Se calcula la diferencia entre las subimagenes de la imagen limpiada por la red
-
+        Lambda = epoch / opt.n_epoch * opt.increase_ratio   ### Se calcula el parametro lambda
         loss1 = torch.mean(diff**2)   ### El primer indice de perdida es calculado como la media de la distancia de las subimagenes originales al cuadrado
         loss2 = Lambda * torch.mean((diff - exp_diff)**2)   ### El segundo indice de perdida se calcula calculando la media de la diferencia entre ambos errores al cuadrado multiplicado por lambda como regulador
         """Para mas informacion acudir al articulo"""
