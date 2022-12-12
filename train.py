@@ -16,7 +16,7 @@ from arch_unet import UNet
 from dataset_utils import AugmentNoise, DataLoader_Imagenet_val, DataLoader_Validation, crop_image
 from noise_metrics import calculate_ssim, calculate_psnr
 from generator_subimages import generate_mask_pair, generate_subimages
-from utils import checkpoint
+from utils import checkpoint, ProgressBar
 import settings
 
 parser = argparse.ArgumentParser()
@@ -39,9 +39,7 @@ parser.add_argument("--Lambda1", type=float, default=1.0)
 parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
-parser.add_argument("--torch_seed", type=int, default=3407)
 parser.add_argument("--overview", action='store_true')
-parser.add_argument("--", action='store_true')
 
 opt, _ = parser.parse_known_args()  ### Recopilar parametros de ejecucion
 os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de dispositivo gpu para la ejecucion
@@ -68,6 +66,8 @@ valid_dict = {
     "BSD300": validation_loader.bsd300(),
     "Set14": validation_loader.set14()
 }
+
+progress_bar = ProgressBar(TrainingLoader)
 
 # Noise adder
 noise_adder = AugmentNoise(style=opt.noisetype)   ### Creacion de objeto que servira para la inclusion de ruido artificial
@@ -151,6 +151,8 @@ for epoch in range(1, opt.n_epoch + 1):
             mean_loss2 += np.mean(loss2.item())
             mean_loss_full += np.mean(loss_all.item())
             mean_time += (time.time() - st)
+            progress_bar.printProgressBar(cnt, "Epoch {}".format(epoch))
+            
     if opt.overview:
         print(
                 'Overview: {:04d} Loss1={:.6f}, Lambda={}, Loss2={:.6f}, Loss_Full={:.6f}, Time={:.4f}'

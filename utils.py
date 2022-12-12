@@ -18,3 +18,31 @@ def checkpoint(net, epoch, name, path, log_name):
     save_model_path = os.path.join(save_model_path, model_name)   ### Crea la ruta completa del archivo que se creará
     torch.save(net.state_dict(), save_model_path)   ### Guarda los pesos del modelo
     print('Checkpoint saved to {}'.format(save_model_path))
+
+class ProgressBar(iterable, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iterable    - Required  : iterable object (Iterable)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    self.total = len(iterable)
+    self.prefix = prefix
+    self.suffix = suffix
+    self.decimals = decimals
+    self.length = length
+    self.fill = fill
+    self.printEnd = printEnd
+    
+    # Progress Bar Printing Function
+    def printProgressBar (iteration, prefix = self.prefix, suffix = self.suffix, decimals = self.decimals, length = self.length , fill = self.fill, printEnd = self.printEnd):
+        percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+        filledLength = int(length * iteration // total)
+        bar = fill * filledLength + '-' * (length - filledLength)
+        print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+        
