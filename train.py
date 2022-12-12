@@ -40,7 +40,6 @@ parser.add_argument("--Lambda1", type=float, default=1.0)
 parser.add_argument("--Lambda2", type=float, default=1.0)
 parser.add_argument("--increase_ratio", type=float, default=2.0)
 parser.add_argument("--crop_size", type=int, default=None)
-parser.add_argument("--torch_seed", type=int, default=3407)
 parser.add_argument('--arch', type=str, required=True, \
             choices=["unet", "esrt"], \
             help='dataset (options: unet, esrt)')
@@ -50,7 +49,6 @@ os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_devices   ### Selección de disposi
 settings.init()
 
 
-torch.manual_seed(opt.torch_seed)
 # Training Set
 TrainingDataset = DataLoader_Imagenet_val(opt.data_dir, patch=opt.patchsize)   ### Preparacion de la informacion para la carga del dataset
 TrainingLoader = DataLoader(dataset=TrainingDataset,
@@ -131,10 +129,10 @@ for epoch in range(1, opt.n_epoch + 1):
 
         noisy_output = network(noisy_sub1)   ### La primera subimagen ruidosa se pasa por la red para obtener una salida limpia
         noisy_target = noisy_sub2   ### La segunda subimagen ruidosa se convierte en el resultado esperado
-        Lambda = epoch / opt.n_epoch * opt.increase_ratio   ### Se calcula el parametro lambda
+        
         diff = noisy_output - noisy_target   ### Se calcula la diferencia entre salida de la red y salida esperada
         exp_diff = noisy_sub1_denoised - noisy_sub2_denoised   ### Se calcula la diferencia entre las subimagenes de la imagen limpiada por la red
-
+        Lambda = epoch / opt.n_epoch * opt.increase_ratio   ### Se calcula el parametro lambda
         loss1 = torch.mean(diff**2)   ### El primer indice de perdida es calculado como la media de la distancia de las subimagenes originales al cuadrado
         loss2 = Lambda * torch.mean((diff - exp_diff)**2)   ### El segundo indice de perdida se calcula calculando la media de la diferencia entre ambos errores al cuadrado multiplicado por lambda como regulador
         """Para mas informacion acudir al articulo"""
