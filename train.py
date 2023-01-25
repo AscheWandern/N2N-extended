@@ -167,12 +167,15 @@ for epoch in range(1, opt.n_epoch + 1):
             repeat_times = valid_repeat_times[valid_name]   ### Se obtiene cuantas veces va a procesarse cada dataset
             for i in range(repeat_times):   ### 
                 for idx, im in enumerate(valid_images):   ### Para cada imagen del dataset actual
-                    if opt.crop_size is not None: ### Se realiza un recorte aleatorio a la imagen si se indica un tamaño
-                        im = crop_image(im, opt.crop_size, center_crop=True)
                     origin255 = im.copy()   ### Se crea una copia de la imagen original
                     origin255 = origin255.astype(np.uint8)   ### Se convierte a tipo entero sin signo
                     im = np.array(im, dtype=np.float32) / 255.0   ### Se convierte a numpy array de tipo float 32
                     noisy_im = noise_adder.add_valid_noise(im)   ### Añade ruido artificial a la imagen preparada
+                    if opt.crop_size is not None: ### Se realiza un recorte aleatorio a la imagen si se indica un tamaño
+                        origin255 = crop_image(origin255, opt.crop_size, center_crop=True)
+                        im = crop_image(im, opt.crop_size, center_crop=True)
+                        noisy_im = crop_image(noisy_im, opt.crop_size, center_crop=True)
+                        
                     if epoch == opt.n_snapshot:   ### Si debe hacerse punto de guardado en esta epoca
                         noisy255 = noisy_im.copy()   ### Se hace una copia de la imagen ruidosa
                         noisy255 = np.clip(noisy255 * 255.0 + 0.5, 0,
