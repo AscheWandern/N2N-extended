@@ -44,7 +44,7 @@ class AugmentNoise(object):
             return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
         elif self.style == "gauss_range":   ### Tipo de ruido es gaussiano con valor variable
             min_std, max_std = self.params   ### Guarda la desviacion minima y maxima
-            std = torch.rand(size=(shape,
+            std = torch.rand(size=shape,
                              device=x.device) * (max_std - min_std) + min_std   ### Genera una matriz de valores aleatorios entre el maximo y el minimo de variacion
             ### Crea un tensor del tamaño de la imagen de tipo float para almacenar el ruido
             noise = torch.cuda.FloatTensor(shape, device=x.device)
