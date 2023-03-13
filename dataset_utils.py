@@ -44,9 +44,9 @@ class AugmentNoise(object):
             return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
         elif self.style == "gauss_range":   ### Tipo de ruido es gaussiano con valor variable
             min_std, max_std = self.params   ### Guarda la desviacion minima y maxima
-            std = torch.rand(size=shape,
-                             device=x.device) * (max_std - min_std) + min_std   ### Genera una matriz de valores aleatorios entre el maximo y el minimo de variacion
+            std = torch.rand(1) * (max_std - min_std) + min_std   ### Genera una matriz de valores aleatorios entre el maximo y el minimo de variacion
             ### Crea un tensor del tamaño de la imagen de tipo float para almacenar el ruido
+            std = std * torch.ones(shape, device=x.device)   ### Crea una matriz rellena del valor estándar en el el dispositivo de ejecucion
             noise = torch.cuda.FloatTensor(shape, device=x.device)
             torch.normal(mean=0, std=std, generator=get_generator(), out=noise)   ### Genera el ruido normalizado con un generador usando la matriz de valor estandar creada anteriormente
             return x + noise   ### Devuelve la suma de la imagen y la matriz de ruido para crear la imagen con ruido
@@ -57,8 +57,8 @@ class AugmentNoise(object):
             return noised   ### Devuelve la imagen con el ruido ya aplicado
         elif self.style == "poisson_range":   ### Tipo de ruido es de poisson con valor variable
             min_lam, max_lam = self.params   ### Guarda el indice minimo y maximo de ruido de Poisson
-            lam = torch.rand(size=shape,
-                             device=x.device) * (max_lam - min_lam) + min_lam   ### Genera una matriz con valores aleatorios entre los valores maximos y minimos
+            lam = torch.rand(1) * (max_lam - min_lam) + min_lam   
+            lam = lam * torch.ones(shape, device=x.device)   ### Genera una matriz con valores aleatorios entre los valores maximos y minimos
             noised = torch.poisson(lam * x, generator=get_generator()) / lam   ### Genera un tensor con distribucion de Poisson normalizado
             return noised   ### Devuelve la imagen con el ruido ya aplicado
 
